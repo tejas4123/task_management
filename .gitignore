@@ -1,0 +1,29 @@
+# Environment
+.env
+
+# Python
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Node
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+
+# OS
+.DS_Store
+
+# AWS / SSH keys
+*.pem
+
+# IDE
+.vscode/
+.idea/
+
+# Test/cache
+.pytest_cache/
+.coverage

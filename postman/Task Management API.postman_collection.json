@@ -1,0 +1,3319 @@
+{
+  "info": {
+    "name": "Task Management API",
+    "description": "Task & Engagement Management Tool.\n\nEvery request is self-contained: a pre-request script signs in as the role that request needs, so you can run any folder in any order, and the whole collection runs clean under Newman.\n\nDemo users (password `Password123!`): admin, manager1, manager2, member1..member4.\n\nThe **Authorization checks** folder is meant to return 400/403/409 - each request asserts the failure it should get.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Make sure there is always a usable token, even on a lone request.",
+          "if (!pm.collectionVariables.get('access_token')) {",
+          "  pm.sendRequest({",
+          "    url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+          "    method: 'POST',",
+          "    header: { 'Content-Type': 'application/json' },",
+          "    body: { mode: 'raw', raw: JSON.stringify(",
+          "      { username: 'manager1', password: 'Password123!' }) }",
+          "  }, function (err, res) {",
+          "    if (!err && res.code === 200) {",
+          "      pm.collectionVariables.set('access_token', res.json().access);",
+          "    }",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_auth_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "base_engagement_url",
+      "value": "http://localhost:8002"
+    },
+    {
+      "key": "base_task_url",
+      "value": "http://localhost:8003"
+    },
+    {
+      "key": "internal_token",
+      "value": "development-internal-token"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "task_id",
+      "value": "1"
+    },
+    {
+      "key": "engagement_id",
+      "value": "1"
+    },
+    {
+      "key": "service_type_id",
+      "value": "1"
+    },
+    {
+      "key": "client_id",
+      "value": "1"
+    },
+    {
+      "key": "throwaway_client_id",
+      "value": ""
+    },
+    {
+      "key": "created_user_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login as manager",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/auth/login/",
+            "description": "Stores access_token for the rest of the collection.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager1\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access);",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "  pm.test('access token carries the role claim', function () {",
+                  "    var claims = JSON.parse(atob(body.access.split('.')[1]));",
+                  "    pm.expect(claims).to.have.property('role');",
+                  "    pm.expect(claims).to.have.property('user_id');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as team member",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/auth/login/",
+            "description": "Switch the collection to a team member.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"member1\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access);",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "  pm.test('access token carries the role claim', function () {",
+                  "    var claims = JSON.parse(atob(body.access.split('.')[1]));",
+                  "    pm.expect(claims).to.have.property('role');",
+                  "    pm.expect(claims).to.have.property('user_id');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login as admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/auth/login/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  var body = pm.response.json();",
+                  "  pm.collectionVariables.set('access_token', body.access);",
+                  "  pm.collectionVariables.set('refresh_token', body.refresh);",
+                  "  pm.test('access token carries the role claim', function () {",
+                  "    var claims = JSON.parse(atob(body.access.split('.')[1]));",
+                  "    pm.expect(claims).to.have.property('role');",
+                  "    pm.expect(claims).to.have.property('user_id');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login with a bad password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/auth/login/",
+            "description": "Expected to fail.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager1\",\n  \"password\": \"wrong\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/auth/refresh/",
+            "description": "The refreshed access token keeps the role claim.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('role claim survives refresh', function () {",
+                  "  var claims = JSON.parse(atob(pm.response.json().access.split('.')[1]));",
+                  "  pm.expect(claims.role).to.eql('MANAGER');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_auth_url}}/api/v1/auth/me/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_auth_url}}/api/v1/users/?role=TEAM_MEMBER",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create user (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"member{{$randomInt}}\",\n  \"email\": \"new@example.com\",\n  \"first_name\": \"Nikhil\",\n  \"last_name\": \"Desai\",\n  \"role\": \"TEAM_MEMBER\",\n  \"password\": \"Password123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create manager (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager{{$randomInt}}\",\n  \"email\": \"manager01@example.com\",\n  \"first_name\": \"Manager\",\n  \"last_name\": \"One\",\n  \"role\": \"MANAGER\",\n  \"password\": \"SecurePassword123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('the password is never echoed back', function () {",
+                  "  pm.expect(pm.response.text()).to.not.include('password');",
+                  "});",
+                  "pm.test('the requested role is honoured', function () {",
+                  "  pm.expect(pm.response.json().role).to.eql('MANAGER');",
+                  "});",
+                  "pm.collectionVariables.set('created_user_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change a user's role (admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/{{created_user_id}}/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"TEAM_MEMBER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('role changed', function () {",
+                  "  pm.expect(pm.response.json().role).to.eql('TEAM_MEMBER');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate a user (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_auth_url}}/api/v1/users/{{created_user_id}}/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', function () { pm.response.to.have.status(204); });",
+                  "// The row is kept - other services reference users by id."
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "item": [
+        {
+          "name": "List clients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/clients/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create client (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/clients/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Exports {{$randomInt}}\",\n  \"email\": \"a@acme.example\",\n  \"phone\": \"+91-9800000009\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update client",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/clients/{{client_id}}/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+91-9800000010\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate client (throwaway)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/clients/{{throwaway_client_id}}/",
+            "description": "Soft delete. Creates its own client first - deactivating a seeded client would block engagements for it in every later request."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin, then create a throwaway client to delete.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (err || res.code !== 200) { return; }",
+                  "  var token = res.json().access;",
+                  "  pm.collectionVariables.set('access_token', token);",
+                  "  pm.sendRequest({",
+                  "    url: pm.variables.replaceIn('{{base_engagement_url}}') + '/api/v1/clients/',",
+                  "    method: 'POST',",
+                  "    header: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },",
+                  "    body: { mode: 'raw', raw: JSON.stringify(",
+                  "      { name: 'Throwaway ' + Date.now() }) }",
+                  "  }, function (e2, r2) {",
+                  "    if (!e2 && r2.code === 201) {",
+                  "      pm.collectionVariables.set('throwaway_client_id', r2.json().id);",
+                  "    }",
+                  "  });",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 No Content', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Services",
+      "item": [
+        {
+          "name": "List service types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/services/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create service type (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/services/",
+            "description": "is_recurring is derived from frequency and is read-only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Annual Audit Support {{$randomInt}}\",\n  \"description\": \"Yearly audit assistance.\",\n  \"frequency\": \"YEARLY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "pm.test('is_recurring derived from frequency', function () {",
+                  "  pm.expect(pm.response.json().is_recurring).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Task Templates",
+      "item": [
+        {
+          "name": "List templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/templates/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Templates for one service",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/templates/?service_type={{service_type_id}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create template (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/templates/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"service_type\": \"{{service_type_id}}\",\n  \"title\": \"Archive working papers\",\n  \"sequence\": 99,\n  \"default_due_days\": 25\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 or 400 if sequence taken', function () {",
+                  "  pm.expect([201, 400]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Engagements",
+      "item": [
+        {
+          "name": "List engagements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/engagements/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get engagement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/engagements/{{engagement_id}}/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create engagement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/engagements/",
+            "description": "Publishes ENGAGEMENT_CREATED after commit; the worker generates the tasks a moment later.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client\": 1,\n  \"service_type\": 1,\n  \"period_start\": \"2028-01-01\",\n  \"period_end\": \"2028-01-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201, or 409 if it already exists', function () {",
+                  "  pm.expect([201, 409]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set engagement status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/engagements/{{engagement_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "List tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "\"Cursor paginated. A team member sees only their own tasks.\"",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My tasks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_task_url}}/api/v1/tasks/?mine=true",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter by status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_task_url}}/api/v1/tasks/?status=NOT_STARTED",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter by engagement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_task_url}}/api/v1/tasks/?engagement_id={{engagement_id}}",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/dashboard/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "\"Aggregated counters, scoped to the caller.\"",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('has every counter', function () {",
+                  "  var d = pm.response.json();",
+                  "  ['open_tasks','overdue','due_today','waiting_for_client',",
+                  "   'waiting_for_review','completed','total','by_status']",
+                  "    .forEach(function (k) { pm.expect(d).to.have.property(k); });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get task with history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a NOT_STARTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('exposes the workflow', function () {",
+                  "  pm.expect(pm.response.json()).to.have.property('allowed_transitions');",
+                  "  pm.expect(pm.response.json()).to.have.property('history');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Assign (manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/assign/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigned_to_id\": 4\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a NOT_STARTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Set due date (manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/due-date/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"due_date\": \"2027-10-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a NOT_STARTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start work",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"comment\": \"Picked this up.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a NOT_STARTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wait for client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"WAITING_FOR_CLIENT\",\n  \"comment\": \"Awaiting register.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a IN_PROGRESS task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=IN_PROGRESS&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resume work",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"comment\": \"Register received.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a WAITING_FOR_CLIENT task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=WAITING_FOR_CLIENT&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit for review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"READY_FOR_REVIEW\",\n  \"comment\": \"Ready for review.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a IN_PROGRESS task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=IN_PROGRESS&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request changes (manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/request-changes/",
+            "description": "A comment is mandatory - it is the reviewer's feedback.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Reconciliation is missing March.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a READY_FOR_REVIEW task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=READY_FOR_REVIEW&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rework after changes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"comment\": \"Fixing.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a CHANGES_REQUESTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=CHANGES_REQUESTED&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resubmit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"READY_FOR_REVIEW\",\n  \"comment\": \"March added.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a IN_PROGRESS task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=IN_PROGRESS&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Approve (manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/approve/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Approved.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a READY_FOR_REVIEW task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=READY_FOR_REVIEW&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('task is completed', function () {",
+                  "  pm.expect(pm.response.json().status).to.eql('COMPLETED');",
+                  "  pm.expect(pm.response.json().allowed_transitions).to.be.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authorization checks (expected to fail)",
+      "item": [
+        {
+          "name": "Invalid transition -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/status/",
+            "description": "NOT_STARTED -> COMPLETED skips the workflow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1, then pick a task in the right state.",
+                  "// The lookup is nested inside the login callback: pm.sendRequest is async,",
+                  "// so running them side by side would read the token before it is set.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (err || res.code !== 200) { return; }",
+                  "  var token = res.json().access;",
+                  "  pm.collectionVariables.set('access_token', token);",
+                  "  pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "",
+                  "  // A NOT_STARTED task makes NOT_STARTED -> COMPLETED the skip we want to prove.",
+                  "  pm.sendRequest({",
+                  "    url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1',",
+                  "    method: 'GET',",
+                  "    header: { 'Authorization': 'Bearer ' + token }",
+                  "  }, function (lookupErr, lookupRes) {",
+                  "    if (!lookupErr && lookupRes.code === 200 && lookupRes.json().results.length) {",
+                  "      pm.collectionVariables.set('task_id', lookupRes.json().results[0].id);",
+                  "    }",
+                  "  });",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('names both statuses', function () {",
+                  "  pm.expect(pm.response.json().detail).to.include('NOT_STARTED');",
+                  "  pm.expect(pm.response.json().detail).to.include('COMPLETED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team member approves -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/approve/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1, then pick a task in the right state.",
+                  "// The lookup is nested inside the login callback: pm.sendRequest is async,",
+                  "// so running them side by side would read the token before it is set.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (err || res.code !== 200) { return; }",
+                  "  var token = res.json().access;",
+                  "  pm.collectionVariables.set('access_token', token);",
+                  "  pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "",
+                  "  // One of member1's own submitted tasks: 404 would hide the authorization check.",
+                  "  pm.sendRequest({",
+                  "    url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=READY_FOR_REVIEW&page_size=1&mine=true',",
+                  "    method: 'GET',",
+                  "    header: { 'Authorization': 'Bearer ' + token }",
+                  "  }, function (lookupErr, lookupRes) {",
+                  "    if (!lookupErr && lookupRes.code === 200 && lookupRes.json().results.length) {",
+                  "      pm.collectionVariables.set('task_id', lookupRes.json().results[0].id);",
+                  "    }",
+                  "  });",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 or 404 - never an approval', function () {",
+                  "  pm.expect([403, 404]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team member assigns -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/assign/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigned_to_id\": 5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a NOT_STARTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team member sets a deadline -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/tasks/{{task_id}}/due-date/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"due_date\": \"2030-01-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});",
+                  "// Find a NOT_STARTED task so the workflow request has valid input.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_task_url}}') + '/api/v1/tasks/?status=NOT_STARTED&page_size=1&assigned_to_id=4',",
+                  "  method: 'GET',",
+                  "  header: { 'Authorization': 'Bearer ' + pm.collectionVariables.get('access_token') }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200 && res.json().results.length) {",
+                  "    pm.collectionVariables.set('task_id', res.json().results[0].id);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate engagement -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/engagements/",
+            "description": "Blocked by UNIQUE(client, service, period_start, period_end).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client\": 1,\n  \"service_type\": 1,\n  \"period_start\": \"2026-08-01\",\n  \"period_end\": \"2026-08-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', function () { pm.response.to.have.status(409); });",
+                  "pm.test('says why', function () {",
+                  "  pm.expect(pm.response.json().detail).to.include('already exists');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Misaligned monthly period -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/engagements/",
+            "description": "A monthly period must cover the whole month.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client\": 2,\n  \"service_type\": 1,\n  \"period_start\": \"2027-11-01\",\n  \"period_end\": \"2027-11-15\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', function () { pm.response.to.have.status(400); });",
+                  "pm.test('names the correct end date', function () {",
+                  "  pm.expect(pm.response.json().detail).to.include('2027-11-30');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team member creates engagement -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/engagements/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"client\": 1,\n  \"service_type\": 1,\n  \"period_start\": \"2027-12-01\",\n  \"period_end\": \"2027-12-31\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Manager creates a service type -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/services/",
+            "description": "The service catalogue is admin-owned.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Not allowed\",\n  \"frequency\": \"ONE_TIME\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_task_url}}/api/v1/tasks/",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Internal endpoint with an admin JWT -> 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/internal/services/{{service_type_id}}/templates/",
+            "description": "Internal APIs need the service token, not a user token."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as admin so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'admin', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk-create with a manager JWT -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/internal/tasks/bulk-create/",
+            "description": "A user token must never be able to inject tasks.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"engagement_id\": 1,\n  \"tasks\": [\n    {\n      \"template_id\": 1,\n      \"title\": \"x\",\n      \"due_date\": \"2027-01-01\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Manager creates a user -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager{{$randomInt}}\",\n  \"email\": \"manager01@example.com\",\n  \"first_name\": \"Manager\",\n  \"last_name\": \"One\",\n  \"role\": \"MANAGER\",\n  \"password\": \"SecurePassword123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('only admins may manage the directory', function () {",
+                  "  pm.expect(pm.response.json().detail).to.include('administrators');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Team member creates a user -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager{{$randomInt}}\",\n  \"email\": \"manager01@example.com\",\n  \"first_name\": \"Manager\",\n  \"last_name\": \"One\",\n  \"role\": \"MANAGER\",\n  \"password\": \"SecurePassword123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as member1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'member1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a user with no token -> 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"manager{{$randomInt}}\",\n  \"email\": \"manager01@example.com\",\n  \"first_name\": \"Manager\",\n  \"last_name\": \"One\",\n  \"role\": \"MANAGER\",\n  \"password\": \"SecurePassword123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401 Unauthorized', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Manager changes a role -> 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/users/2/",
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Sign in as manager1 so this request does not depend on run order.",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{base_auth_url}}') + '/api/v1/auth/login/',",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: { mode: 'raw', raw: JSON.stringify(",
+                  "    { username: 'manager1', password: 'Password123!' }) }",
+                  "}, function (err, res) {",
+                  "  if (!err && res.code === 200) {",
+                  "    pm.collectionVariables.set('access_token', res.json().access);",
+                  "    pm.collectionVariables.set('refresh_token', res.json().refresh);",
+                  "  }",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Internal (service-to-service)",
+      "item": [
+        {
+          "name": "Get templates",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/internal/services/{{service_type_id}}/templates/",
+            "description": "What the worker calls to expand a service into tasks.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk create tasks (idempotent)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_task_url}}/api/v1/internal/tasks/bulk-create/",
+            "description": "Replaying returns 200 with created_count 0.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"engagement_id\": 1,\n  \"tasks\": [\n    {\n      \"template_id\": 1,\n      \"title\": \"Collect sales and purchase registers\",\n      \"description\": \"\",\n      \"due_date\": \"2026-08-04\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 replay or 201 first time', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});",
+                  "pm.test('reports what it skipped', function () {",
+                  "  pm.expect(pm.response.json()).to.have.property('skipped_count');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate next recurring period",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_engagement_url}}/api/v1/internal/engagements/{{engagement_id}}/next-period/",
+            "description": "Only creates the next period once the current one has closed, and only if the client and service are still valid. Otherwise 200 with created: false.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 nothing due, or 201 created', function () {",
+                  "  pm.expect([200, 201]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Look up users by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Internal-Token",
+                "value": "{{internal_token}}"
+              }
+            ],
+            "url": "{{base_auth_url}}/api/v1/internal/users/?ids=4,5,6",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Internal endpoint without a token -> 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/api/v1/internal/services/{{service_type_id}}/templates/",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 Forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Auth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_auth_url}}/healthz/",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Engagement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_engagement_url}}/healthz/",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Task",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_task_url}}/healthz/",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

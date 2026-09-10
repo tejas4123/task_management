@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   Every colour in the app resolves to one of these variables. Values are HSL
+   channels (no `hsl()` wrapper) so Tailwind can apply opacity modifiers.
+
+   Two ramps only: a slate neutral ramp, and a single indigo accent. Status
+   tones are named by colour (`--tone-blue-*`) rather than by workflow status,
+   so the status -> tone mapping lives in one TypeScript record instead of
+   being baked into the stylesheet.
+--------------------------------------------------------------------------- */
+
+@layer base {
+  :root {
+    /* Page sits a step below surfaces; never pure white. */
+    --background: 0 0% 98%;              /* #FAFAFA */
+    --surface: 0 0% 100%;
+    --surface-raised: 0 0% 100%;
+    --surface-hover: 220 14% 96%;
+
+    --foreground: 222 22% 11%;
+    --muted-foreground: 220 9% 46%;
+    --subtle-foreground: 220 9% 60%;
+
+    --border: 220 13% 91%;
+    --border-strong: 220 13% 85%;
+    --input: 220 13% 91%;
+
+    /* The one accent. Primary actions, active nav, focus rings. Nothing else. */
+    --primary: 243 75% 59%;              /* indigo-600 */
+    --primary-hover: 245 58% 51%;        /* indigo-700 */
+    --primary-foreground: 0 0% 100%;
+    --primary-subtle: 240 100% 97%;      /* indigo-50  */
+    --ring: 243 75% 59%;
+
+    --danger: 0 72% 51%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 0 86% 97%;
+
+    /* Overdue: a red dot and red text, never a status colour. */
+    --overdue: 0 72% 51%;
+
+    /* Status tones: muted background, saturated text, subtle ring. */
+    --tone-slate-bg: 220 14% 96%;
+    --tone-slate-fg: 220 9% 40%;
+    --tone-slate-ring: 220 13% 88%;
+
+    --tone-blue-bg: 214 95% 96%;
+    --tone-blue-fg: 221 83% 48%;
+    --tone-blue-ring: 213 90% 88%;
+
+    --tone-amber-bg: 48 100% 94%;
+    --tone-amber-fg: 32 81% 38%;
+    --tone-amber-ring: 45 93% 82%;
+
+    --tone-violet-bg: 251 91% 97%;
+    --tone-violet-fg: 258 70% 53%;
+    --tone-violet-ring: 252 87% 90%;
+
+    --tone-rose-bg: 356 100% 97%;
+    --tone-rose-fg: 350 74% 47%;
+    --tone-rose-ring: 353 90% 90%;
+
+    --tone-emerald-bg: 152 76% 95%;
+    --tone-emerald-fg: 161 88% 27%;
+    --tone-emerald-ring: 152 66% 85%;
+
+    --radius: 0.5rem;                    /* 8px  */
+    --radius-lg: 0.75rem;                /* 12px */
+  }
+
+  .dark {
+    --background: 220 12% 5%;            /* #0B0C0E */
+    --surface: 220 10% 8%;               /* one step lighter than the page */
+    --surface-raised: 220 9% 10%;
+    --surface-hover: 220 9% 13%;
+
+    --foreground: 210 20% 96%;
+    --muted-foreground: 218 11% 60%;
+    --subtle-foreground: 218 10% 48%;
+
+    --border: 220 9% 16%;
+    --border-strong: 220 8% 22%;
+    --input: 220 9% 18%;
+
+    --primary: 239 84% 67%;              /* indigo-500 reads better on dark */
+    --primary-hover: 243 75% 71%;
+    --primary-foreground: 0 0% 100%;
+    --primary-subtle: 243 47% 16%;
+    --ring: 239 84% 67%;
+
+    --danger: 0 72% 58%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 0 45% 16%;
+
+    --overdue: 0 84% 65%;
+
+    --tone-slate-bg: 220 9% 15%;
+    --tone-slate-fg: 218 11% 70%;
+    --tone-slate-ring: 220 8% 24%;
+
+    --tone-blue-bg: 222 47% 17%;
+    --tone-blue-fg: 213 94% 74%;
+    --tone-blue-ring: 220 50% 28%;
+
+    --tone-amber-bg: 30 50% 14%;
+    --tone-amber-fg: 43 96% 62%;
+    --tone-amber-ring: 33 50% 26%;
+
+    --tone-violet-bg: 258 42% 19%;
+    --tone-violet-fg: 255 92% 79%;
+    --tone-violet-ring: 258 40% 31%;
+
+    --tone-rose-bg: 345 40% 17%;
+    --tone-rose-fg: 351 95% 76%;
+    --tone-rose-ring: 348 40% 29%;
+
+    --tone-emerald-bg: 165 45% 12%;
+    --tone-emerald-fg: 158 64% 55%;
+    --tone-emerald-ring: 162 45% 22%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+      sans-serif;
+    font-size: 0.875rem;                 /* body 14 */
+    line-height: 1.5rem;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Anything numeric lines up in columns. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+  }
+
+  /* Thin, low-contrast scrollbars - they should not compete with content. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border-strong)) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border-strong));
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+}
+
+@layer components {
+  /* Meta text and table headers: 12/500, uppercase, wide tracking, muted. */
+  .label-meta {
+    @apply text-xs font-medium uppercase tracking-wider text-muted-foreground;
+  }
+}

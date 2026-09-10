@@ -1,0 +1,131 @@
+# Local development stack.
+#
+# Only the application services publish ports. PostgreSQL and Redis stay on the
+# internal compose network - nothing outside the stack needs to reach them.
+
+x-django-service: &django-service
+  restart: unless-stopped
+  env_file:
+    - .env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: task_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: task_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  auth-service:
+    <<: *django-service
+    build:
+      context: ./services/auth-service
+    container_name: auth_service
+    # Source is mounted for local development so `runserver` reloads on edit.
+    # Production images are self-contained - nothing is mounted there.
+    volumes:
+      - ./services/auth-service:/app
+    environment:
+      POSTGRES_DB: ${AUTH_DB_NAME}
+    ports:
+      - "8001:8000"
+
+  engagement-service:
+    <<: *django-service
+    build:
+      context: ./services/engagement-service
+    container_name: engagement_service
+    # Source is mounted for local development so `runserver` reloads on edit.
+    # Production images are self-contained - nothing is mounted there.
+    volumes:
+      - ./services/engagement-service:/app
+    environment:
+      POSTGRES_DB: ${ENGAGEMENT_DB_NAME}
+    ports:
+      - "8002:8000"
+
+  task-service:
+    <<: *django-service
+    build:
+      context: ./services/task-service
+    container_name: task_service
+    # Source is mounted for local development so `runserver` reloads on edit.
+    # Production images are self-contained - nothing is mounted there.
+    volumes:
+      - ./services/task-service:/app
+    environment:
+      POSTGRES_DB: ${TASK_DB_NAME}
+    ports:
+      - "8003:8000"
+
+  worker-service:
+    build:
+      context: ./services/worker-service
+    container_name: worker_service
+    volumes:
+      - ./services/worker-service:/app
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      engagement-service:
+        condition: service_started
+      task-service:
+        condition: service_started
+    command:
+      - celery
+      - -A
+      - app.celery:app
+      - worker
+      - --loglevel=info
+      - -Q
+      - engagement-events
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    environment:
+      VITE_AUTH_URL: http://localhost:8001
+      VITE_ENGAGEMENT_URL: http://localhost:8002
+      VITE_TASK_URL: http://localhost:8003
+    ports:
+      - "5173:5173"
+    depends_on:
+      - auth-service
+      - engagement-service
+      - task-service
+
+volumes:
+  postgres_data:
+  redis_data:
