@@ -16,7 +16,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-django-secret")
 DEBUG = _env_bool("DJANGO_DEBUG", True)
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
 
 INSTALLED_APPS = [
     # No django.contrib.auth / contenttypes / admin: this service owns no users
