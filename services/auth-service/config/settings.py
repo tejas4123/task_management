@@ -128,10 +128,11 @@ INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "development-intern
 # Browser origins allowed to call this service. Defaults cover the local Vite
 # dev server; deployment adds the frontend origin (e.g. http://<ec2-ip>:3000)
 # through CORS_ALLOWED_ORIGINS. Allow-all is opt-in and never the default.
-CORS_ALLOWED_ORIGINS = _env_list(
-    "CORS_ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
-)
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
 CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL_ORIGINS", False)
 
 LOGGING = {
