@@ -115,12 +115,8 @@ services:
       context: ./frontend
     container_name: frontend
     restart: unless-stopped
-    environment:
-      VITE_AUTH_URL: http://localhost:8001
-      VITE_ENGAGEMENT_URL: http://localhost:8002
-      VITE_TASK_URL: http://localhost:8003
     ports:
-      - "5173:5173"
+      - "3000:80"
     depends_on:
       - auth-service
       - engagement-service
