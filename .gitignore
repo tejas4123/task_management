@@ -1,5 +1,7 @@
 # Environment
 .env
+.env.local
+.env.*.local
 
 # Python
 .venv/
@@ -13,6 +15,8 @@ node_modules/
 **/node_modules/
 dist/
 **/dist/
+*.tsbuildinfo
+**/*.tsbuildinfo
 
 # OS
 .DS_Store

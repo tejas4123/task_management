@@ -24,6 +24,7 @@ their next period on their own.
 - [Everyday commands](#everyday-commands)
 - [User management](#user-management)
 - [Design decisions](#design-decisions)
+- [Deployment](#deployment)
 - [Production](#production)
 - [Repository layout](#repository-layout)
 
@@ -34,12 +35,28 @@ their next period on their own.
 Requires Docker and Docker Compose. Run everything from the repository root.
 
 ```bash
-cp .env.example .env
-make up          # or: docker compose up -d --build
-make seed        # demo users, clients, services, engagements and tasks
+cp .env.example .env      # then replace every REPLACE_WITH_* placeholder
+make up                   # or: docker compose up -d --build
+make seed                 # demo users, clients, services, engagements and tasks
 ```
 
 Then open **http://localhost:5173** and sign in as `manager1` / `Password123!`.
+
+`docker compose` picks up `docker-compose.override.yml` automatically, which runs
+the frontend as the Vite dev server with hot reload. Deployment skips that file —
+see [Deployment](#deployment).
+
+| | Local development | EC2 |
+|---|---|---|
+| Command | `docker compose up -d --build` | `docker compose -f docker-compose.yml up -d --build` |
+| Frontend | Vite dev server, `http://localhost:5173` | nginx image, `http://EC2_PUBLIC_IP:3000` |
+| Auth | `http://localhost:8001` | `http://EC2_PUBLIC_IP:8001` |
+| Engagement | `http://localhost:8002` | `http://EC2_PUBLIC_IP:8002` |
+| Task | `http://localhost:8003` | `http://EC2_PUBLIC_IP:8003` |
+| Vite env file | `frontend/.env.development` | `frontend/.env.production` |
+
+Postgres and Redis are Docker containers in **both** environments and are never
+published to the host.
 
 `make seed` is safe to re-run. To start over completely:
 
@@ -67,7 +84,7 @@ subsequent user is created by an admin through `POST /api/v1/users/`.
 
 | Service | Port | Owns |
 |---|---|---|
-| `frontend` | 5173 | React + TypeScript UI |
+| `frontend` | 5173 local / 3000 EC2 | React + TypeScript UI (Vite dev server locally, nginx in deployment) |
 | `auth-service` | 8001 | Users, authentication, JWT issuance, roles |
 | `engagement-service` | 8002 | Clients, service types, task templates, engagements |
 | `task-service` | 8003 | Tasks, task history, the workflow |
@@ -435,28 +452,110 @@ The reasoning behind these is in **[docs/technical-design.md](docs/technical-des
 
 ---
 
+## Deployment
+
+### How the frontend learns its API URLs
+
+The browser — not a container — calls the APIs, so the frontend can never use the
+internal service names. The three URLs come from Vite environment variables and are
+**inlined into the bundle at build time**, which means changing them requires a
+rebuild, not a restart.
+
+| File | Loaded by | Values |
+|---|---|---|
+| `frontend/.env.development` | `npm run dev` (mode = development) | `http://localhost:8001-8003` |
+| `frontend/.env.production` | `npm run build` (mode = production) | `http://EC2_PUBLIC_IP:8001-8003` |
+
+`src/api/client.ts` reads `import.meta.env.VITE_AUTH_URL`,
+`VITE_ENGAGEMENT_URL` and `VITE_TASK_URL`. No host or IP is hard-coded in React
+source, and the real EC2 IP is not committed — `.env.production` ships a
+`EC2_PUBLIC_IP` placeholder that is substituted on the server.
+
+Shell environment variables take priority over the `.env` files, so the same build
+can also be driven by `--build-arg`/`environment` if that is ever preferred. The
+committed placeholder is deliberate: an operator who forgets to substitute it gets an
+obviously broken hostname rather than a bundle that silently points at `localhost`.
+
+### EC2 (temporary testing on ports 3000/8001-8003)
+
+```bash
+# 1. Configure the server environment
+cp .env.example .env
+EC2_IP=$(curl -s ifconfig.me)
+sed -i "s/^DJANGO_ALLOWED_HOSTS=.*/DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,$EC2_IP/" .env
+sed -i "s#^CORS_ALLOWED_ORIGINS=.*#CORS_ALLOWED_ORIGINS=http://$EC2_IP:3000#" .env
+# then replace every REPLACE_WITH_* secret in .env
+
+# 2. Point the frontend bundle at this host
+sed -i "s/EC2_PUBLIC_IP/$EC2_IP/g" frontend/.env.production
+
+# 3. Build and start WITHOUT the local dev override
+docker compose -f docker-compose.yml up -d --build
+docker compose -f docker-compose.yml exec auth-service python manage.py migrate
+```
+
+| | URL |
+|---|---|
+| Frontend | `http://EC2_PUBLIC_IP:3000` |
+| Auth | `http://EC2_PUBLIC_IP:8001` |
+| Engagement | `http://EC2_PUBLIC_IP:8002` |
+| Task | `http://EC2_PUBLIC_IP:8003` |
+
+The EC2 security group needs inbound `3000`, `8001`, `8002` and `8003`. Postgres and
+Redis stay on the internal compose network with no published ports.
+
+**This port layout is temporary.** The intended end state puts nginx in front on
+**80/443** with TLS, serving the static bundle at `/` and reverse-proxying
+`/api/auth/`, `/api/engagement/` and `/api/task/` to the backend containers. At that
+point the three backend ports close entirely, the frontend's three `VITE_*` URLs
+collapse to same-origin paths, and CORS stops being needed at all.
+
+### Environment reference
+
+| Variable | Local | EC2 |
+|---|---|---|
+| `DJANGO_ALLOWED_HOSTS` | `localhost,127.0.0.1` | `localhost,127.0.0.1,<ec2-ip>` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:3000` | `http://<ec2-ip>:3000` |
+| `CORS_ALLOW_ALL_ORIGINS` | `false` | `false` |
+| `POSTGRES_HOST` / `REDIS_HOST` | `postgres` / `redis` | `postgres` / `redis` |
+
+Both host lists are parsed with a comma-split that drops blanks, so a trailing comma
+or a stray space never becomes an empty host entry. No IP appears in Python source.
+
+---
+
 ## Production
 
-Target deployment on AWS:
+The whole stack runs as Docker containers on a single **EC2** host, driven by the
+same `docker-compose.yml` used locally:
 
 ```
-Internet ──HTTPS──► ALB ──► ECS Fargate ──► RDS PostgreSQL
-                             auth                 │
-                             engagement    ElastiCache Redis
-                             task
-                             worker
+Internet ──► EC2 security group ──► docker compose
+                                      frontend (nginx)   :3000
+                                      auth               :8001 ─┐
+                                      engagement         :8002 ─┼─► postgres (container)
+                                      task               :8003 ─┘   redis    (container)
+                                      worker (celery)
 ```
 
-- Images in **ECR**, deployed to **ECS Fargate**; no EC2.
-- **RDS PostgreSQL** with the three service databases; **ElastiCache Redis** as the
-  broker.
-- `JWT_SECRET_KEY` and `INTERNAL_SERVICE_TOKEN` in **Secrets Manager**, injected as
-  task-definition secrets. No secret is committed.
-- The ALB routes only `/api/v1/`. `/api/v1/internal/` is blocked at the listener —
-  internal traffic stays inside the VPC.
-- Logs go to **CloudWatch**, carrying `request_id`, `user_id`, `task_id`,
+- **PostgreSQL and Redis are containers**, not RDS or ElastiCache. `infra/postgres/init.sql`
+  creates `auth_db`, `engagement_db` and `task_db` on first start; data lives in the
+  `postgres_data` named volume.
+- Neither has a published port — they are reachable only over the compose network.
+- `JWT_SECRET_KEY`, `INTERNAL_SERVICE_TOKEN`, `DJANGO_SECRET_KEY` and
+  `POSTGRES_PASSWORD` come from the server's `.env`, which is gitignored. No secret,
+  `.pem` file or IP is committed.
+- `ALLOWED_HOSTS` and `CORS_ALLOWED_ORIGINS` are environment driven;
+  `CORS_ALLOW_ALL_ORIGINS` stays `false` outside a developer laptop.
+- Celery runs **only** in `worker-service`. The Task Service serves HTTP through
+  gunicorn and nothing else.
+- `healthz/` on each service backs the compose healthchecks and, later, the nginx
+  upstream checks.
+- Logs go to the container log driver, carrying `request_id`, `user_id`, `task_id`,
   `engagement_id`, event and service.
-- `healthz/` on each service backs the ALB and ECS health checks.
+
+The next step is nginx on **80/443** terminating TLS and reverse-proxying the API
+paths — see [Deployment](#deployment).
 
 **Scaling to ~5M tasks.** The task table carries the indexes the real queries use —
 `(assigned_to_id, status)` for "my tasks", `(status, due_date)` for the dashboard and
@@ -468,8 +567,8 @@ summary tables are the next step if the dashboard aggregate ever becomes the
 bottleneck — measured, not assumed.
 
 **CI/CD.** `.github/workflows/ci.yml` runs every backend suite and the frontend build
-on each push and pull request, and only builds and pushes images to ECR and triggers
-the ECS deployment after a green run on `main`.
+on each push and pull request. Deployment is a `docker compose -f docker-compose.yml
+up -d --build` on the EC2 host after a green run on `main`.
 
 ---
 
@@ -477,7 +576,8 @@ the ECS deployment after a green run on `main`.
 
 ```
 task-management/
-├── docker-compose.yml
+├── docker-compose.yml            base stack; frontend = nginx image on :3000
+├── docker-compose.override.yml   local only; frontend = Vite dev server on :5173
 ├── Makefile
 ├── .env.example
 ├── infra/postgres/init.sql       one database per service
@@ -486,6 +586,10 @@ task-management/
 ├── docs/technical-design.md
 ├── .github/workflows/ci.yml
 ├── frontend/                     React + TypeScript (Vite)
+│   ├── .env.development          API URLs for `npm run dev`
+│   ├── .env.production           API URLs inlined by `npm run build`
+│   ├── Dockerfile                dev stage -> build stage -> nginx
+│   └── nginx.conf                SPA fallback so deep links survive refresh
 └── services/
     ├── auth-service/             users, JWT, roles
     ├── engagement-service/       clients, services, templates, engagements

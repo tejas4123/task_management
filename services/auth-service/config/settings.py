@@ -16,9 +16,21 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes"}
 
 
+def _env_list(name: str, default: str = "") -> list[str]:
+    """Read a comma-separated environment variable into a clean list.
+
+    Empty entries are dropped so an unset or trailing-comma value yields ``[]``
+    rather than ``[""]``, which Django would treat as a real (never matching)
+    host.
+    """
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
+
+
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-django-secret")
 DEBUG = _env_bool("DJANGO_DEBUG", True)
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",")
+# Hosts are environment driven: "localhost,127.0.0.1" locally, the EC2 public
+# IP (and later the domain) in deployment. Never hard-coded here.
+ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -113,7 +125,14 @@ SIMPLE_JWT = {
 # Shared secret used by other services calling /api/v1/internal/.
 INTERNAL_SERVICE_TOKEN = os.getenv("INTERNAL_SERVICE_TOKEN", "development-internal-token")
 
-CORS_ALLOW_ALL_ORIGINS = True
+# Browser origins allowed to call this service. Defaults cover the local Vite
+# dev server; deployment adds the frontend origin (e.g. http://<ec2-ip>:3000)
+# through CORS_ALLOWED_ORIGINS. Allow-all is opt-in and never the default.
+CORS_ALLOWED_ORIGINS = _env_list(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
+)
+CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL_ORIGINS", False)
 
 LOGGING = {
     "version": 1,

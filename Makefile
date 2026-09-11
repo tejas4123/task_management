@@ -1,10 +1,13 @@
 # Convenience wrappers. Always run these from the repository root -
 # `docker compose` resolves paths relative to the compose file.
 
-.PHONY: up down build logs migrate seed test reset ps
+.PHONY: up prod-up down build logs migrate seed test reset ps
 
-up:            ## Build and start the whole stack
+up:            ## Build and start the whole stack for local development (frontend on :5173)
 	docker compose up -d --build
+
+prod-up:       ## Build and start the deployment stack, skipping the local dev override (frontend on :3000)
+	docker compose -f docker-compose.yml up -d --build
 
 down:          ## Stop the stack (keeps data)
 	docker compose down

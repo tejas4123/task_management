@@ -13,5 +13,6 @@ RUN chmod +x entrypoint.sh
 
 EXPOSE 8000
 
+# The Task Service serves HTTP only - entrypoint.sh migrates and then execs
+# gunicorn. Celery belongs to worker-service and must never run here.
 ENTRYPOINT ["./entrypoint.sh"]
-CMD [ "celery", "-A","app.celery:app","worker", "--loglevel=info","-Q", "engagement-events"]

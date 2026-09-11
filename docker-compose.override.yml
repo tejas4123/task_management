@@ -1,0 +1,25 @@
+# Local development overrides.
+#
+# Compose loads this file automatically, so plain `docker compose up -d` gives a
+# developer the Vite dev server with hot reload on http://localhost:5173 while
+# every backend service stays exactly as defined in docker-compose.yml.
+#
+# Deployment must skip this file explicitly, which builds the nginx image and
+# publishes the frontend on port 3000 instead:
+#
+#     docker compose -f docker-compose.yml up -d --build
+
+services:
+  frontend:
+    build:
+      target: dev
+    command: npm run dev
+    # !override replaces the base port list instead of appending to it, so the
+    # dead 3000:80 mapping does not linger in development.
+    ports: !override
+      - "5173:5173"
+    volumes:
+      # Source is bind mounted for hot reload; the anonymous volume keeps the
+      # image's node_modules from being shadowed by the host directory.
+      - ./frontend:/app
+      - /app/node_modules
