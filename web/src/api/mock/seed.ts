@@ -92,18 +92,39 @@ const SERVICE_SEED: Array<{
   name: string;
   description: string;
   frequency: ServiceType["frequency"];
-  steps: Array<[string, number]>;
+  /** title, days after period_start the task is due, what the step involves */
+  steps: Array<[string, number, string]>;
 }> = [
   {
     name: "Monthly GST Compliance",
     description: "Monthly GST return preparation, reconciliation and filing.",
     frequency: "MONTHLY",
     steps: [
-      ["Collect sales and purchase registers", 3],
-      ["Reconcile GSTR-2B with purchase register", 7],
-      ["Prepare GSTR-1", 10],
-      ["Prepare GSTR-3B and compute liability", 15],
-      ["File returns and share acknowledgement", 20],
+      [
+        "Collect sales and purchase registers",
+        3,
+        "Request the month's sales and purchase registers from the client and check that the invoice count matches their books.",
+      ],
+      [
+        "Reconcile GSTR-2B with purchase register",
+        7,
+        "Match GSTR-2B against the purchase register. Flag missing invoices and suppliers who have not filed, and list the ineligible credit.",
+      ],
+      [
+        "Prepare GSTR-1",
+        10,
+        "Prepare the outward supplies return from the sales register. Check HSN summary and B2B invoice details before sharing for approval.",
+      ],
+      [
+        "Prepare GSTR-3B and compute liability",
+        15,
+        "Summarise outward and inward supplies, apply the eligible input credit and compute the net cash liability for the month.",
+      ],
+      [
+        "File returns and share acknowledgement",
+        20,
+        "File GSTR-1 and GSTR-3B once the client approves, then send the acknowledgement and the challan copy.",
+      ],
     ],
   },
   {
@@ -111,10 +132,26 @@ const SERVICE_SEED: Array<{
     description: "New GST registration for a client entity.",
     frequency: "ONE_TIME",
     steps: [
-      ["Collect KYC and constitution documents", 3],
-      ["Verify principal place of business proof", 6],
-      ["Submit REG-01 application", 10],
-      ["Respond to departmental queries", 20],
+      [
+        "Collect KYC and constitution documents",
+        3,
+        "Gather PAN, incorporation or partnership documents, board resolution and the authorised signatory's identity proof.",
+      ],
+      [
+        "Verify principal place of business proof",
+        6,
+        "Confirm the address proof is current and consistent - rent agreement, electricity bill and NOC where the premises are not owned.",
+      ],
+      [
+        "Submit REG-01 application",
+        10,
+        "File Part A and Part B of REG-01, attach the documents and complete the Aadhaar authentication for the signatory.",
+      ],
+      [
+        "Respond to departmental queries",
+        20,
+        "Answer any REG-03 notice within the window and track the application until the GSTIN is issued.",
+      ],
     ],
   },
   {
@@ -122,10 +159,26 @@ const SERVICE_SEED: Array<{
     description: "Quarterly refund application for exporters.",
     frequency: "QUARTERLY",
     steps: [
-      ["Compile export invoices and shipping bills", 10],
-      ["Compute refund eligibility", 20],
-      ["File RFD-01", 30],
-      ["Track refund sanction", 45],
+      [
+        "Compile export invoices and shipping bills",
+        10,
+        "Collect the quarter's export invoices, shipping bills and bank realisation certificates, and tie them back to the returns filed.",
+      ],
+      [
+        "Compute refund eligibility",
+        20,
+        "Work out the refund under the zero-rated formula, netting off any credit already utilised, and prepare the supporting statement.",
+      ],
+      [
+        "File RFD-01",
+        30,
+        "Submit RFD-01 with the statement and the undertaking, and record the ARN.",
+      ],
+      [
+        "Track refund sanction",
+        45,
+        "Follow the ARN through scrutiny, answer any deficiency memo and confirm the sanctioned amount reaches the client's account.",
+      ],
     ],
   },
   {
@@ -133,10 +186,26 @@ const SERVICE_SEED: Array<{
     description: "Year-end audit assistance and schedule preparation.",
     frequency: "YEARLY",
     steps: [
-      ["Prepare trial balance and schedules", 30],
-      ["Draft financial statements", 60],
-      ["Resolve auditor observations", 90],
-      ["File the annual return", 120],
+      [
+        "Prepare trial balance and schedules",
+        30,
+        "Close the books for the year and prepare the supporting schedules the auditor will ask for.",
+      ],
+      [
+        "Draft financial statements",
+        60,
+        "Draft the balance sheet, profit and loss account and notes in the applicable format.",
+      ],
+      [
+        "Resolve auditor observations",
+        90,
+        "Work through the audit observations, agree the adjusting entries and update the statements.",
+      ],
+      [
+        "File the annual return",
+        120,
+        "File the annual return once the statements are signed, and archive the working papers.",
+      ],
     ],
   },
 ];
@@ -153,12 +222,12 @@ export const services: ServiceType[] = SERVICE_SEED.map((service, index) => ({
 
 export const templates: TaskTemplate[] = SERVICE_SEED.flatMap(
   (service, serviceIndex) =>
-    service.steps.map(([title, dueDays], stepIndex) => ({
+    service.steps.map(([title, dueDays, description], stepIndex) => ({
       id: serviceIndex * 100 + stepIndex + 1,
       service_type: serviceIndex + 1,
       service_name: service.name,
       title,
-      description: "",
+      description,
       sequence: stepIndex + 1,
       default_due_days: dueDays,
       created_at: CREATED_AT,
@@ -325,7 +394,7 @@ for (const engagement of engagements) {
       engagement_id: engagement.id,
       template_id: template.id,
       title: template.title,
-      description: `${engagement.client_name} · ${engagement.service_name} · ${engagement.period_start} to ${engagement.period_end}`,
+      description: template.description,
       assigned_to_id: MEMBER_IDS[taskId % MEMBER_IDS.length],
       created_by_id: null,
       created_by_type: "SYSTEM",

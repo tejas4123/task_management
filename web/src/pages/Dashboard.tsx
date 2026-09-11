@@ -42,8 +42,11 @@ export function Dashboard() {
 
   // Two small, tightly-filtered lists rather than one big fetch filtered here.
   const review = useTasks({ status: ["READY_FOR_REVIEW"], page_size: 8 });
+  // Bounded at both ends: overdue work has its own tile, and letting it leak
+  // into "the next 7 days" would make that heading a lie.
   const upcoming = useTasks({
     status: OPEN_STATUSES,
+    due_after: today,
     due_before: addWeek(today),
     page_size: 8,
     ...(manager ? {} : { mine: true }),

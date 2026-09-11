@@ -39,17 +39,25 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { className, variant, size, asChild, loading, children, disabled, ...props },
   ref,
 ) {
-  const Comp = asChild ? Slot : "button";
+  const classes = cn(button({ variant, size }), className);
+
+  /**
+   * `asChild` hands the styling to the child element - usually a router Link.
+   * Slot needs that child to be the only one, so the spinner is not injected
+   * here; a link has nothing to wait for anyway.
+   */
+  if (asChild) {
+    return (
+      <Slot ref={ref} className={classes} {...props}>
+        {children}
+      </Slot>
+    );
+  }
 
   return (
-    <Comp
-      ref={ref}
-      className={cn(button({ variant, size }), className)}
-      disabled={disabled || loading}
-      {...props}
-    >
+    <button ref={ref} className={classes} disabled={disabled || loading} {...props}>
       {loading ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
       {children}
-    </Comp>
+    </button>
   );
 });
