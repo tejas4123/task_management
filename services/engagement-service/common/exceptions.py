@@ -5,6 +5,7 @@ keeps the rules testable without an HTTP layer and keeps status-code choices in
 one place.
 """
 
+from django.db.models import ProtectedError
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
@@ -35,6 +36,21 @@ class PermissionDeniedError(DomainError):
 def api_exception_handler(exc, context):
     if isinstance(exc, DomainError):
         return Response({"detail": exc.detail}, status=exc.status_code)
+
+    if isinstance(exc, ProtectedError):
+        # Clients and service types are referenced by engagements with
+        # on_delete=PROTECT. Deleting one that is in use is a foreseeable
+        # request, not a server fault - without this it escaped as a 500 with
+        # a Django HTML debug page.
+        return Response(
+            {
+                "detail": (
+                    "This record is still referenced by existing engagements "
+                    "and cannot be deleted. Deactivate it instead."
+                )
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
 
     response = exception_handler(exc, context)
 
