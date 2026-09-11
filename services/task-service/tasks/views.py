@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from common.pagination import TaskCursorPagination
-from common.permissions import TEAM_MEMBER
+from common.permissions import TEAM_MEMBER, IsAdminOrManager
 
 from .dashboard import build_summary
 from .models import Task
@@ -12,6 +12,7 @@ from .serializers import (
     RequestChangesSerializer,
     TaskAssignSerializer,
     TaskCommentSerializer,
+    TaskCreateSerializer,
     TaskDetailSerializer,
     TaskDueDateSerializer,
     TaskSerializer,
@@ -25,11 +26,12 @@ class TaskViewSet(
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Read access plus the workflow actions.
+    """Read access, manual creation, and the workflow actions.
 
-    Tasks are created only by the Worker through the internal bulk-create
-    endpoint, and they are never deleted - the history is the record. So this
-    viewset deliberately has no create/update/destroy.
+    Most tasks arrive from the Worker through the internal bulk-create endpoint
+    when an engagement is created; ``create`` covers the manager who needs one
+    that generation did not produce. Tasks are never updated in place or
+    deleted - every change goes through a workflow action and leaves history.
     """
 
     queryset = Task.objects.all()
@@ -37,10 +39,35 @@ class TaskViewSet(
     permission_classes = [IsAuthenticated]
     pagination_class = TaskCursorPagination
 
+    def get_permissions(self):
+        if self.action == "create":
+            return [IsAuthenticated(), IsAdminOrManager()]
+        return super().get_permissions()
+
     def get_serializer_class(self):
         if self.action == "retrieve":
             return TaskDetailSerializer
+        if self.action == "create":
+            return TaskCreateSerializer
         return TaskSerializer
+
+    def create(self, request, *args, **kwargs):
+        """Create a task by hand.
+
+        Defining ``create`` is what makes the router map POST onto the list
+        route; the role check above and the one inside the service layer are
+        both real - the second is what protects a non-HTTP caller.
+        """
+        serializer = TaskCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        task = TaskService.create_task(
+            data=serializer.validated_data, user=request.user
+        )
+
+        return Response(
+            TaskSerializer(task).data, status=status.HTTP_201_CREATED
+        )
 
     def get_queryset(self):
         queryset = self.visible_tasks()

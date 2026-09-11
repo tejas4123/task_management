@@ -57,6 +57,39 @@ class TaskDetailSerializer(TaskSerializer):
         read_only_fields = fields
 
 
+class TaskCreateSerializer(serializers.Serializer):
+    """Input validation for a manually created task.
+
+    Shape only - who may create, and what happens when the engagement already
+    has a task for this template, are decided by ``TaskService.create_task``.
+
+    ``template_id`` is required because the model column is NOT NULL and
+    ``UNIQUE(engagement_id, template_id)`` is what keeps worker task generation
+    idempotent. A manual task therefore instantiates a real task template
+    rather than inventing a free-form one.
+    """
+
+    engagement_id = serializers.IntegerField(min_value=1)
+    template_id = serializers.IntegerField(min_value=1)
+    title = serializers.CharField(max_length=255)
+    description = serializers.CharField(
+        required=False, allow_blank=True, default=""
+    )
+    due_date = serializers.DateField()
+    # Null creates the task unassigned; a manager can assign it afterwards.
+    assigned_to_id = serializers.IntegerField(
+        required=False, allow_null=True, default=None
+    )
+
+    def validate_title(self, value: str) -> str:
+        title = value.strip()
+
+        if not title:
+            raise serializers.ValidationError("A task needs a title.")
+
+        return title
+
+
 class TaskStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Task.Status.choices)
     comment = serializers.CharField(required=False, allow_blank=True, default="")

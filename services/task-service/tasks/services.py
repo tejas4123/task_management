@@ -11,10 +11,10 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from common.exceptions import DomainError, PermissionDeniedError
+from common.exceptions import ConflictError, DomainError, PermissionDeniedError
 
 from .models import Task, TaskHistory
 from .workflow import (
@@ -34,6 +34,52 @@ class InvalidWorkflowTransition(DomainError):
 
 
 class TaskService:
+    @staticmethod
+    @transaction.atomic
+    def create_task(*, data: dict, user) -> Task:
+        """Create a task by hand. Admin/Manager only.
+
+        The worker generates a task per template when an engagement is created;
+        this covers the case where a manager needs one that generation did not
+        produce. The task starts at NOT_STARTED like every other task, so it
+        enters the same workflow with no special-casing downstream.
+
+        ``created_by_type`` is USER (not SYSTEM) so the audit trail
+        distinguishes a human-created task from a generated one.
+        """
+
+        if user.role not in REVIEWER_ROLES:
+            raise PermissionDeniedError("Only managers or admins can create tasks.")
+
+        try:
+            task = Task.objects.create(
+                engagement_id=data["engagement_id"],
+                template_id=data["template_id"],
+                title=data["title"],
+                description=data.get("description", ""),
+                assigned_to_id=data.get("assigned_to_id"),
+                created_by_id=user.id,
+                created_by_type=Task.CreatorType.USER,
+                due_date=data["due_date"],
+                status=Status.NOT_STARTED,
+            )
+        except IntegrityError as exc:
+            # UNIQUE(engagement_id, template_id). Checking first would race with
+            # a concurrent request or with worker generation, so the constraint
+            # is the check and this translates it.
+            raise ConflictError(
+                "This engagement already has a task for that template."
+            ) from exc
+
+        logger.info(
+            "task_id=%s created manually for engagement_id=%s by user_id=%s",
+            task.id,
+            task.engagement_id,
+            user.id,
+        )
+
+        return task
+
     @staticmethod
     @transaction.atomic
     def change_status(*, task: Task, new_status: str, user, comment: str = "") -> Task:

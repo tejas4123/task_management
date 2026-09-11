@@ -5,6 +5,7 @@ import { get } from "../api/client";
 import type { Engagement, Paginated, Task, TaskStatus, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { Card, Empty, ErrorNote, Loading, STATUS_LABELS, StatusBadge, formatDate, isOverdue } from "../components/ui";
+import { CreateTaskForm } from "../components/CreateTaskForm";
 import { Icon } from "../components/Icon";
 
 const STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[];
@@ -16,7 +17,7 @@ function personName(person: User | undefined) {
 }
 
 export default function Tasks() {
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const [params, setParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -25,6 +26,8 @@ export default function Tasks() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [notice, setNotice] = useState<{ id: number; title: string } | null>(null);
 
   const status = params.get("status") ?? "";
   const mine = params.get("mine") === "true";
@@ -91,6 +94,14 @@ export default function Tasks() {
     }
   }
 
+  async function handleCreated(task: Task) {
+    setShowCreate(false);
+    setNotice({ id: task.id, title: task.title });
+    // Re-read rather than splice the new task in: the active filters decide
+    // whether it belongs in this view, and that logic stays in one place.
+    await load();
+  }
+
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
@@ -123,6 +134,9 @@ export default function Tasks() {
 
   const filterCount = [status, assignee, engagement, search, overdueOnly, dueToday, mine].filter(Boolean).length;
   const scopeIsPersonal = user?.role === "TEAM_MEMBER" || mine;
+  // Mirrors the backend: IsAdminOrManager guards POST /api/v1/tasks/. Hiding
+  // the button is a courtesy; the server is what refuses.
+  const canCreate = hasRole("ADMIN", "MANAGER");
   const sortMarker = (key: SortKey) => sort === key ? <span className="sort-marker">{direction === "asc" ? "↑" : "↓"}</span> : null;
 
   return (
@@ -133,8 +147,15 @@ export default function Tasks() {
           <h1>{scopeIsPersonal ? "My tasks" : "All tasks"}</h1>
           <p className="subtitle">{scopeIsPersonal ? "The work currently assigned to you." : "Every task across the practice, in one focused view."}</p>
         </div>
-        <span className="task-count"><strong>{visibleTasks.length}</strong> shown</span>
+        <div className="page-heading__actions">
+          <span className="task-count"><strong>{visibleTasks.length}</strong> shown</span>
+          {canCreate ? <button className="primary" onClick={() => { setShowCreate((open) => !open); setNotice(null); }}><Icon name={showCreate ? "close" : "plus"} />{showCreate ? "Close" : "Create task"}</button> : null}
+        </div>
       </div>
+
+      {notice ? <p className="note note--ok">Created <Link className="task-link" to={`/tasks/${notice.id}`}>{notice.title}</Link>. <button className="text-button" onClick={() => setNotice(null)}>Dismiss</button></p> : null}
+
+      {showCreate ? <CreateTaskForm engagements={engagements} people={people} onCreated={handleCreated} onCancel={() => setShowCreate(false)} /> : null}
 
       <Card>
         <div className="filter-bar">
@@ -167,7 +188,7 @@ export default function Tasks() {
               <tbody>{visibleTasks.map((task) => {
                 const item = engagementsById.get(task.engagement_id);
                 const person = task.assigned_to_id ? peopleById.get(task.assigned_to_id) : undefined;
-                return <tr key={task.id}>
+                return <tr key={task.id} className={notice?.id === task.id ? "row-created" : undefined}>
                   <td><Link className="task-link" to={`/tasks/${task.id}`}>{task.title}</Link><small>Task #{task.id}</small></td>
                   <td>{item ? <span className="engagement-cell"><strong>{item.client_name}</strong><small>{item.service_name}</small></span> : <span className="muted">Engagement #{task.engagement_id}</span>}</td>
                   <td>{person ? <span className="assignee-cell"><span className="avatar avatar--tiny">{personName(person).slice(0, 2).toUpperCase()}</span>{personName(person)}</span> : <span className="muted">Unassigned</span>}</td>
