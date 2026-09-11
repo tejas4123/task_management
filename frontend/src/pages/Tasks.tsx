@@ -4,8 +4,10 @@ import { Link, useSearchParams } from "react-router-dom";
 import { get } from "../api/client";
 import type { Engagement, Paginated, Task, TaskStatus, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
-import { Card, Empty, ErrorNote, Loading, STATUS_LABELS, StatusBadge, formatDate, isOverdue } from "../components/ui";
+import { Card, EmptyState, ErrorNote, STATUS_LABELS, Skeleton, StatusBadge, formatDate, isOverdue } from "../components/ui";
 import { CreateTaskForm } from "../components/CreateTaskForm";
+import { useToast } from "../components/Toast";
+import { Chip, PageHeader } from "../components/layout";
 import { Icon } from "../components/Icon";
 
 const STATUSES = Object.keys(STATUS_LABELS) as TaskStatus[];
@@ -18,6 +20,7 @@ function personName(person: User | undefined) {
 
 export default function Tasks() {
   const { user, hasRole } = useAuth();
+  const toast = useToast();
   const [params, setParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -97,6 +100,7 @@ export default function Tasks() {
   async function handleCreated(task: Task) {
     setShowCreate(false);
     setNotice({ id: task.id, title: task.title });
+    toast.success(`Created "${task.title}".`);
     // Re-read rather than splice the new task in: the active filters decide
     // whether it belongs in this view, and that logic stays in one place.
     await load();
@@ -141,17 +145,20 @@ export default function Tasks() {
 
   return (
     <section className="page-section">
-      <div className="page-heading page-heading--split">
-        <div>
-          <p className="eyebrow">Task management</p>
-          <h1>{scopeIsPersonal ? "My tasks" : "All tasks"}</h1>
-          <p className="subtitle">{scopeIsPersonal ? "The work currently assigned to you." : "Every task across the practice, in one focused view."}</p>
-        </div>
-        <div className="page-heading__actions">
-          <span className="task-count"><strong>{visibleTasks.length}</strong> shown</span>
-          {canCreate ? <button className="primary" onClick={() => { setShowCreate((open) => !open); setNotice(null); }}><Icon name={showCreate ? "close" : "plus"} />{showCreate ? "Close" : "Create task"}</button> : null}
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Task management"
+        title={scopeIsPersonal ? "My tasks" : "All tasks"}
+        description={scopeIsPersonal ? "The work currently assigned to you." : "Every task across the practice, in one focused view."}
+        meta={<span className="task-count"><strong>{visibleTasks.length}</strong> shown</span>}
+        actions={
+          <>
+            <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading} aria-label="Refresh task list">
+              <Icon name="grid" /> Refresh
+            </button>
+            {canCreate ? <button className="primary" onClick={() => { setShowCreate((open) => !open); setNotice(null); }}><Icon name={showCreate ? "close" : "plus"} />{showCreate ? "Close" : "Create task"}</button> : null}
+          </>
+        }
+      />
 
       {notice ? <p className="note note--ok">Created <Link className="task-link" to={`/tasks/${notice.id}`}>{notice.title}</Link>. <button className="text-button" onClick={() => setNotice(null)}>Dismiss</button></p> : null}
 
@@ -170,10 +177,33 @@ export default function Tasks() {
           {user?.role !== "TEAM_MEMBER" ? <label className="check-filter"><input type="checkbox" checked={mine} onChange={(event) => updateParam("mine", event.target.checked ? "true" : "")} />Assigned to me</label> : null}
           {filterCount > 0 ? <button className="text-button" onClick={() => setParams(new URLSearchParams())}>Clear filters</button> : null}
         </div>
+        {filterCount > 0 ? (
+          <div className="chip-row chip-row--inset">
+            {status ? <Chip label="Status" value={STATUS_LABELS[status as TaskStatus] ?? status} onRemove={() => updateParam("status", "")} /> : null}
+            {assignee ? <Chip label="Assignee" value={personName(peopleById.get(Number(assignee)))} onRemove={() => updateParam("assignee", "")} /> : null}
+            {engagement ? <Chip label="Engagement" value={engagementsById.get(Number(engagement))?.client_name ?? `#${engagement}`} onRemove={() => updateParam("engagement", "")} /> : null}
+            {overdueOnly ? <Chip label="Due" value="Overdue" onRemove={() => updateParam("overdue", "")} /> : null}
+            {dueToday ? <Chip label="Due" value="Today" onRemove={() => updateParam("due", "")} /> : null}
+            {mine ? <Chip label="Scope" value="Assigned to me" onRemove={() => updateParam("mine", "")} /> : null}
+            {search ? <Chip label="Search" value={search} onRemove={() => updateParam("search", "")} /> : null}
+          </div>
+        ) : null}
       </Card>
 
       <ErrorNote message={error} />
-      {loading ? <Loading /> : visibleTasks.length === 0 ? <Card><Empty>{filterCount ? "No tasks match the selected filters." : "No tasks have been generated yet."}</Empty></Card> : (
+      {loading ? <Card><Skeleton variant="table" /></Card> : visibleTasks.length === 0 ? (
+        <Card>
+          <EmptyState
+            title={filterCount ? "No tasks match these filters" : "No tasks yet"}
+            body={filterCount
+              ? "Try widening the filters, or clear them to see everything you can access."
+              : "Tasks are generated from a service's templates when an engagement is created. Managers can also add one by hand."}
+            action={filterCount
+              ? { onClick: () => setParams(new URLSearchParams()), label: "Clear filters" }
+              : canCreate ? { onClick: () => setShowCreate(true), label: "Create a task" } : undefined}
+          />
+        </Card>
+      ) : (
         <Card>
           <div className="table-wrap">
             <table className="table task-table">

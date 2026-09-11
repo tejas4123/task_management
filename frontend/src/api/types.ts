@@ -49,6 +49,8 @@ export interface TaskTemplate {
   created_at?: string;
 }
 
+export type EngagementStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
+
 export interface Engagement {
   id: number;
   client: number;
@@ -58,7 +60,7 @@ export interface Engagement {
   frequency: Frequency;
   period_start: string;
   period_end: string;
-  status: "ACTIVE" | "COMPLETED" | "CANCELLED";
+  status: EngagementStatus;
   created_by_id: number;
   created_at?: string;
   updated_at?: string;

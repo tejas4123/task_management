@@ -4,8 +4,10 @@ import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { useAuth } from "./auth/AuthContext";
 import { Loading } from "./components/ui";
 import { Icon, type IconName } from "./components/Icon";
+import ClientDetail from "./pages/ClientDetail";
 import Clients from "./pages/Clients";
 import Dashboard from "./pages/Dashboard";
+import EngagementDetail from "./pages/EngagementDetail";
 import Engagements from "./pages/Engagements";
 import Login from "./pages/Login";
 import Services from "./pages/Services";
@@ -95,7 +97,9 @@ function Shell() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
             <Route path="/engagements" element={<Engagements />} />
+            <Route path="/engagements/:id" element={<EngagementDetail />} />
             <Route path="/clients" element={<Clients />} />
+            <Route path="/clients/:id" element={<ClientDetail />} />
             <Route path="/services" element={<Services />} />
             <Route path="/team" element={user.role === "ADMIN" ? <Team /> : <Navigate to="/" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />

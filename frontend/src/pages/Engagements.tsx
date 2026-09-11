@@ -1,33 +1,49 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
 import { get, post } from "../api/client";
-import type { Client, Engagement, Paginated, ServiceType } from "../api/types";
+import type { Client, Engagement, EngagementStatus, Paginated, ServiceType } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
-import { Card, Empty, ErrorNote, Loading, formatDate } from "../components/ui";
+import { Card, EmptyState, ErrorNote, Skeleton, formatDate, useDebounced } from "../components/ui";
+import { useToast } from "../components/Toast";
+import { PageHeader } from "../components/layout";
 import { Icon } from "../components/Icon";
 
 const EMPTY_FORM = { client: "", service_type: "", period_start: "", period_end: "" };
 
 export default function Engagements() {
   const { hasRole } = useAuth();
+  const toast = useToast();
   const [engagements, setEngagements] = useState<Engagement[] | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [services, setServices] = useState<ServiceType[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
+  const [serviceFilter, setServiceFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
-  async function load() {
-    const page = await get<Paginated<Engagement>>("engagement", "/api/v1/engagements/?page_size=100");
+  const load = useCallback(async () => {
+    // client / service_type / status are backend filters; search stays local
+    // because the engagement list has no text-search parameter.
+    const query = new URLSearchParams({ page_size: "100" });
+    if (clientFilter) query.set("client", clientFilter);
+    if (serviceFilter) query.set("service_type", serviceFilter);
+    if (statusFilter) query.set("status", statusFilter);
+
+    const page = await get<Paginated<Engagement>>("engagement", `/api/v1/engagements/?${query}`);
     setEngagements(page.results);
-  }
+  }, [clientFilter, serviceFilter, statusFilter]);
 
   useEffect(() => {
+    setEngagements(null);
     load().catch((caught: Error) => setError(caught.message));
+  }, [load]);
+
+  useEffect(() => {
     if (!hasRole("ADMIN", "MANAGER")) return;
     Promise.all([
       get<Paginated<Client>>("engagement", "/api/v1/clients/?is_active=true&page_size=200"),
@@ -41,7 +57,6 @@ export default function Engagements() {
   async function handleCreate(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    setNotice(null);
     if (form.period_end < form.period_start) {
       setError("The period end must be on or after the period start.");
       return;
@@ -53,29 +68,43 @@ export default function Engagements() {
       });
       setForm(EMPTY_FORM);
       setShowCreate(false);
-      setNotice("Engagement created. Its task checklist is now being generated in the background.");
+      toast.success("Engagement created. Its task checklist is being generated in the background.");
       await load();
     } catch (caught) {
-      setError((caught as Error).message);
+      const message = (caught as Error).message;
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
   }
 
-  const filtered = useMemo(() => (engagements ?? []).filter((item) =>
-    `${item.client_name} ${item.service_name} ${item.status}`.toLowerCase().includes(search.toLowerCase()),
-  ), [engagements, search]);
+  const term = useDebounced(search, 250).toLowerCase().trim();
+  const filtered = (engagements ?? []).filter((item) =>
+    `${item.client_name} ${item.service_name}`.toLowerCase().includes(term),
+  );
   const canCreate = hasRole("ADMIN", "MANAGER");
+  const filterCount = [clientFilter, serviceFilter, statusFilter, term].filter(Boolean).length;
+
+  function clearFilters() {
+    setClientFilter("");
+    setServiceFilter("");
+    setStatusFilter("");
+    setSearch("");
+  }
 
   return (
     <section className="page-section">
-      <div className="page-heading page-heading--split">
-        <div><p className="eyebrow">Client work</p><h1>Engagements</h1><p className="subtitle">Active service periods, their scope, and the work they generate.</p></div>
-        {canCreate ? <button className="primary" onClick={() => setShowCreate((open) => !open)}><Icon name={showCreate ? "close" : "plus"} />{showCreate ? "Close" : "New engagement"}</button> : null}
-      </div>
+
+
+      <PageHeader
+        eyebrow="Client work"
+        title="Engagements"
+        description="Active service periods, their scope, and the work they generate."
+        actions={canCreate ? <button className="primary" onClick={() => setShowCreate((open) => !open)}><Icon name={showCreate ? "close" : "plus"} />{showCreate ? "Close" : "New engagement"}</button> : null}
+      />
 
       <ErrorNote message={error} />
-      {notice ? <p className="note note--ok">{notice}</p> : null}
 
       {showCreate ? <Card title="Create engagement">
         <form className="form-grid" onSubmit={handleCreate}>
@@ -88,19 +117,33 @@ export default function Engagements() {
       </Card> : null}
 
       <Card>
-        <div className="table-toolbar">
+        <div className="filter-bar">
           <label className="search-field search-field--wide"><Icon name="search" /><span className="sr-only">Search engagements</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search client or service" /></label>
-          {engagements ? <span className="table-count">{filtered.length} engagements</span> : null}
+          <label className="select-field"><span>Client</span><select value={clientFilter} onChange={(event) => setClientFilter(event.target.value)}><option value="">All clients</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label>
+          <label className="select-field"><span>Service</span><select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)}><option value="">All services</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
+          <label className="select-field"><span>Status</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as EngagementStatus | "")}><option value="">Any status</option><option value="ACTIVE">Active</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></label>
+          {filterCount > 0 ? <button className="text-button" type="button" onClick={clearFilters}>Clear filters</button> : null}
+          {engagements ? <span className="table-count">{filtered.length} shown</span> : null}
         </div>
-        {engagements === null ? <Loading /> : filtered.length === 0 ? <Empty>{search ? "No engagements match that search." : "No engagements yet."}</Empty> : (
+        {engagements === null ? <Skeleton variant="table" /> : filtered.length === 0 ? (
+          <EmptyState
+            title={filterCount ? "No engagements match these filters" : "No engagements yet"}
+            body={filterCount
+              ? "Try widening the filters, or clear them to see everything."
+              : "An engagement covers one service for one client over one reporting period, and generates that period's task checklist."}
+            action={filterCount
+              ? { onClick: clearFilters, label: "Clear filters" }
+              : canCreate ? { onClick: () => setShowCreate(true), label: "Create the first engagement" } : undefined}
+          />
+        ) : (
           <div className="table-wrap"><table className="table engagement-table"><thead><tr><th>Client</th><th>Service</th><th>Service period</th><th>Status</th><th>Created</th><th><span className="sr-only">Tasks</span></th></tr></thead><tbody>
             {filtered.map((item) => <tr key={item.id}>
-              <td><strong>{item.client_name}</strong></td>
+              <td><Link className="task-link" to={`/engagements/${item.id}`}>{item.client_name}</Link></td>
               <td><span className="engagement-cell"><strong>{item.service_name}</strong><small>{item.frequency.replaceAll("_", " ").toLowerCase()}</small></span></td>
               <td><span className="period-cell"><Icon name="calendar" />{formatDate(item.period_start)} <span>–</span> {formatDate(item.period_end)}</span></td>
               <td><span className={`engagement-status engagement-status--${item.status.toLowerCase()}`}>{item.status.toLowerCase()}</span></td>
               <td className="muted">{item.created_at ? formatDate(item.created_at) : "—"}</td>
-              <td><Link to={`/tasks?engagement=${item.id}`} className="row-action" aria-label={`View tasks for ${item.client_name}`}><Icon name="chevron-right" /></Link></td>
+              <td><Link to={`/engagements/${item.id}`} className="row-action" aria-label={`Open ${item.client_name} engagement`}><Icon name="chevron-right" /></Link></td>
             </tr>)}
           </tbody></table></div>
         )}

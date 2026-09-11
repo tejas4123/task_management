@@ -12,6 +12,7 @@ import {
   StatusBadge,
   formatDate,
 } from "../components/ui";
+import { useToast } from "../components/Toast";
 import { Icon } from "../components/Icon";
 
 /** Transitions that are a reviewer decision rather than progress on the work. */
@@ -26,6 +27,7 @@ const WORK_ACTIONS: Partial<Record<TaskStatus, { label: string; description: str
 export default function TaskDetail() {
   const { id } = useParams();
   const { user, hasRole } = useAuth();
+  const toast = useToast();
 
   const [task, setTask] = useState<TaskDetailType | null>(null);
   const [people, setPeople] = useState<User[]>([]);
@@ -57,7 +59,7 @@ export default function TaskDetail() {
       .catch(() => setPeople([]));
   }, [hasRole]);
 
-  async function run(action: () => Promise<unknown>) {
+  async function run(action: () => Promise<unknown>, success?: string) {
     setBusy(true);
     setError(null);
 
@@ -65,10 +67,13 @@ export default function TaskDetail() {
       await action();
       await load();
       setComment("");
+      if (success) toast.success(success);
     } catch (caught) {
       // A 403/400 here is the backend rejecting the action - show its reason
       // verbatim rather than guessing.
-      setError((caught as Error).message);
+      const message = (caught as Error).message;
+      setError(message);
+      toast.error(message);
     } finally {
       setBusy(false);
     }
@@ -111,7 +116,7 @@ export default function TaskDetail() {
       if (dueDateDraft !== currentDueDate) {
         await post("task", `/api/v1/tasks/${taskId}/due-date/`, { due_date: dueDateDraft });
       }
-    });
+    }, "Task settings saved.");
   }
 
   return (

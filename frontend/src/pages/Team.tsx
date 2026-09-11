@@ -3,7 +3,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { get, patch, post } from "../api/client";
 import type { Paginated, Role, User } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
-import { Card, Empty, ErrorNote, Loading } from "../components/ui";
+import { Card, EmptyState, ErrorNote, Skeleton } from "../components/ui";
+import { useToast } from "../components/Toast";
+import { PageHeader } from "../components/layout";
 import { Icon } from "../components/Icon";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -49,9 +51,9 @@ function readableError(message: string): string {
 
 export default function Team() {
   const { user: currentUser } = useAuth();
+  const toast = useToast();
   const [people, setPeople] = useState<User[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showInactive, setShowInactive] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -73,7 +75,6 @@ export default function Team() {
   async function createUser(event: FormEvent) {
     event.preventDefault();
     setError(null);
-    setNotice(null);
 
     if (form.password !== form.confirm_password) {
       setError("The passwords do not match.");
@@ -86,10 +87,12 @@ export default function Team() {
       await post("auth", "/api/v1/users/", payload);
       setForm(EMPTY_FORM);
       setShowCreate(false);
-      setNotice("User created successfully.");
+      toast.success("User created successfully.");
       await load();
     } catch (caught) {
-      setError(readableError((caught as Error).message));
+      const message = readableError((caught as Error).message);
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -97,7 +100,6 @@ export default function Team() {
 
   function startEdit(person: User) {
     setError(null);
-    setNotice(null);
     setEditingId(person.id);
     setEdit({
       email: person.email,
@@ -113,16 +115,17 @@ export default function Team() {
     if (editingId === null || !edit) return;
 
     setError(null);
-    setNotice(null);
     setSubmitting(true);
     try {
       await patch("auth", `/api/v1/users/${editingId}/`, edit);
       setEditingId(null);
       setEdit(null);
-      setNotice("User updated successfully.");
+      toast.success("User updated successfully.");
       await load();
     } catch (caught) {
-      setError(readableError((caught as Error).message));
+      const message = readableError((caught as Error).message);
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -130,14 +133,15 @@ export default function Team() {
 
   async function setActive(person: User, isActive: boolean) {
     setError(null);
-    setNotice(null);
     try {
       // The backend refuses an admin deactivating themselves; surface its message.
       await patch("auth", `/api/v1/users/${person.id}/`, { is_active: isActive });
-      setNotice(isActive ? `${fullName(person)} was reactivated.` : `${fullName(person)} was deactivated.`);
+      toast.success(isActive ? `${fullName(person)} was reactivated.` : `${fullName(person)} was deactivated.`);
       await load();
     } catch (caught) {
-      setError(readableError((caught as Error).message));
+      const message = readableError((caught as Error).message);
+      setError(message);
+      toast.error(message);
     }
   }
 
@@ -153,19 +157,18 @@ export default function Team() {
 
   return (
     <section className="page-section">
-      <div className="page-heading page-heading--split">
-        <div>
-          <p className="eyebrow">Workspace directory</p>
-          <h1>Team</h1>
-          <p className="subtitle">People who can contribute to client work and reviews. Only administrators can add or edit them.</p>
-        </div>
-        <button type="button" className="primary" onClick={() => { setShowCreate((open) => !open); setEditingId(null); }}>
-          <Icon name="plus" /> Create user
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="Workspace directory"
+        title="Team"
+        description="People who can contribute to client work and reviews. Only administrators can add or edit them."
+        actions={
+          <button type="button" className="primary" onClick={() => { setShowCreate((open) => !open); setEditingId(null); }}>
+            <Icon name="plus" /> Create user
+          </button>
+        }
+      />
 
       <ErrorNote message={error} />
-      {notice ? <p className="note note--ok">{notice}</p> : null}
 
       {showCreate ? <Card title="Create user"><form className="form-grid" onSubmit={createUser}>
         <label><span>First name</span><input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required /></label>
@@ -208,7 +211,17 @@ export default function Team() {
           {people ? <span className="table-count">{filtered.length} shown · {activeCount} active</span> : null}
         </div>
 
-        {people === null ? <Loading /> : filtered.length === 0 ? <Empty>No people match that search.</Empty> : (
+        {people === null ? <Skeleton variant="table" /> : filtered.length === 0 ? (
+          <EmptyState
+            title={search ? "No people match that search" : "No team members yet"}
+            body={search
+              ? "Try a different name, username or email."
+              : "Add the managers and team members who will deliver client work."}
+            action={search
+              ? { onClick: () => setSearch(""), label: "Clear search" }
+              : { onClick: () => setShowCreate(true), label: "Create the first user" }}
+          />
+        ) : (
           <div className="table-wrap">
             <table className="table directory-table">
               <thead><tr><th>Member</th><th>Role</th><th>Username</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead>

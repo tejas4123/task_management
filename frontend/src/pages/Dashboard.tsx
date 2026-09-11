@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { get } from "../api/client";
 import type { DashboardSummary, Paginated, Task, TaskStatus } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
-import { Card, ErrorNote, Loading, STATUS_LABELS, StatusBadge, formatDate, isOverdue } from "../components/ui";
+import { Card, ErrorNote, STATUS_LABELS, Skeleton, StatusBadge, formatDate, isOverdue } from "../components/ui";
 import { Icon, type IconName } from "../components/Icon";
 
 interface Metric {
@@ -66,7 +66,7 @@ export default function Dashboard() {
       </div>
 
       <ErrorNote message={error} />
-      {!summary ? <Loading /> : (
+      {!summary ? <><Skeleton variant="panel" /><Card><Skeleton variant="table" /></Card></> : (
         <>
           <div className="metrics-grid">
             {metrics.map((metric) => (
