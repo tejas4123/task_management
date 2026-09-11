@@ -522,6 +522,16 @@ collapse to same-origin paths, and CORS stops being needed at all.
 Both host lists are parsed with a comma-split that drops blanks, so a trailing comma
 or a stray space never becomes an empty host entry. No IP appears in Python source.
 
+`DJANGO_ALLOWED_HOSTS` carries **public** hosts only. The internal compose
+hostnames — `auth-service`, `engagement-service`, `task-service` — plus `127.0.0.1`
+are appended by `settings.py` and must not be listed in `.env`. They are required
+because service-to-service calls send them as the `Host` header: the worker fetches
+templates from `http://engagement-service:8000/` and posts tasks to
+`http://task-service:8000/`, and the container healthcheck hits `127.0.0.1`. A
+deployment that set only the public IP answered those calls with `DisallowedHost`,
+which stopped task generation with no error visible on the worker. None of these
+names resolve outside the compose network, so allowing them adds no public surface.
+
 ---
 
 ## Production

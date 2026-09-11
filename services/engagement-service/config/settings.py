@@ -26,9 +26,25 @@ def _env_list(name: str, default: str = "") -> list[str]:
 
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-django-secret")
 DEBUG = _env_bool("DJANGO_DEBUG", True)
-# Hosts are environment driven: "localhost,127.0.0.1" locally, the EC2 public
-# IP (and later the domain) in deployment. Never hard-coded here.
-ALLOWED_HOSTS = _env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+# Hostnames that services use to reach each other inside the compose network.
+# The worker calls http://engagement-service:8000/..., so that name arrives as
+# the Host header and Django must accept it or the request dies with
+# DisallowedHost - which silently breaks task generation. The container
+# healthcheck hits 127.0.0.1. None of these resolve outside the compose
+# network, so allowing them adds no public attack surface.
+INTERNAL_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "auth-service",
+    "engagement-service",
+    "task-service",
+]
+
+# Public hosts are environment driven (the EC2 IP, later the domain) and are
+# added to - never replace - the internal names above.
+ALLOWED_HOSTS = list(
+    dict.fromkeys(_env_list("DJANGO_ALLOWED_HOSTS") + INTERNAL_HOSTS)
+)
 
 INSTALLED_APPS = [
     # No django.contrib.auth / contenttypes / admin: this service owns no users
